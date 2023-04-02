@@ -6,18 +6,24 @@
 
 import pygame
 from constants import *
-from board import *
+from game import *
 
-FPS = 60
 WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Checkers")
 
 
+def get_position_from_mouse(position):
+    x, y = position
+    row = y // SQUARE_SIZE
+    column = x // SQUARE_SIZE
+    return row, column
+
+
 def main():
     """Sets up event loop to run the game"""
-    run = True
     clock = pygame.time.Clock()
-    board = Board()
+    current_game = Game(WINDOW)
+    run = True
 
     # runs until the game is quit
     while run:
@@ -26,35 +32,15 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
-
             if event.type == pygame.MOUSEBUTTONDOWN:
-                pass
+                position = pygame.mouse.get_pos()
+                row, column = get_position_from_mouse(position)
+                current_game.selected_piece(row, column)
 
-        board.draw(WINDOW)
-        pygame.display.update()
+        current_game.update()
 
     pygame.quit()
 
 
 if __name__ == "__main__":
     main()
-
-
-class OutOfTurn(Exception):
-    """Exception if a player tries to make a move when it is not their turn"""
-    pass
-
-
-class InvalidSquare(Exception):
-    """Exception if a player tries to move to an invalid square"""
-    pass
-
-
-class InvalidPlayer(Exception):
-    """Exception if a player's name does not match a player in the current game"""
-    pass
-
-
-class InvalidColor(Exception):
-    """Exception if a player's name does not match a player in the current game"""
-    pass
