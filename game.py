@@ -3,30 +3,27 @@ from constants import *
 
 
 class Game:
-    """Sets up the game, confirms moves, ..."""
+    """Updates display, validates moves, moves pieces and updates turn."""
+    # used to keep track of how many moves a player has made in a turn. If the first move is a capturing move,
+    # any additional moves must also be capturing moves, or the turn changes.
+    move_num = 0
 
     def __init__(self, window):
         self._window = window
         self._selected_piece = None
         self._board = GameBoard()
         self._current_turn = BLACK
-        self._valid_moves = {}
+        self._valid_moves = []  # list of tuples (row, column)
         self._winner = None
 
     def update(self):
+        """Updates display"""
         self._board.draw_pieces(self._window)
         self.draw_valid_moves(self._valid_moves)
         pygame.display.update()
 
-    def reset_game(self):
-        self._selected_piece = None
-        self._board = GameBoard()
-        self._current_turn = BLACK
-        self._valid_moves = {}
-        self._winner = None
-
     def selected_piece(self, row, column):
-        """Confirms the location is valid and gives list of valid moves. Location is a tuple (row, column)"""
+        """Confirms the location is valid and gives list of valid moves. valid moves are tuples (row, column)"""
         # try to move selected piece. If invalid location unselect piece and call again
         if self._selected_piece:
             move = self._move_square(row, column)
@@ -38,7 +35,10 @@ class Game:
         # finds valid moves for the piece
         if piece != 0 and piece.get_piece_color() == self._current_turn:
             self._selected_piece = piece
-            self._valid_moves = self.get_valid_moves(piece)
+            if self.move_num == 0:
+                self._valid_moves = self.get_valid_moves(piece, False)
+            else:
+                self._valid_moves = self.get_valid_moves(piece, True)
             return True
 
         return False
@@ -51,23 +51,22 @@ class Game:
         piece = self._board.get_checker_details(row, column)
         start_kings = self._board.get_kings(start_location.get_piece_color())
 
-        if self._selected_piece and piece == 0 and (column, row) in self._valid_moves.items():
+        if self._selected_piece and piece == 0 and (row, column) in self._valid_moves:
             new_location = self._board.make_move(self._selected_piece, row, column)
             # updates piece to new position to check for additional capture moves
-            for key, value in new_location.items():
-                new_row = key
-                new_column = value
+            new_row = new_location[0]
+            new_column = new_location[1]
             piece = self._board.get_checker_details(new_row, new_column)
 
+            capture = False  # changed to true if capture was made during current turn
             # tests if piece was captured, and removes if it was
             if abs(start_row - new_row) == 2 and abs(start_column - new_column) == 2:
                 enemy_row = (start_row + new_row) // 2
                 enemy_column = (start_column + new_column) // 2
                 enemy_piece = self._board.get_checker_details(enemy_row, enemy_column)
                 self._board.remove_piece(enemy_piece)
-                captured = True
-            else:
-                captured = False
+                self.move_num += 1
+                capture = True
 
         else:
             return False
@@ -75,73 +74,78 @@ class Game:
         # making a king ends piece's turn
         end_kings = self._board.get_kings(start_location.get_piece_color())
         if end_kings > start_kings:
-            self._valid_moves = {}
             self.update_turn()
+            return True
 
-        if captured and self.test_captures(piece):
-            self._valid_moves = {}
-            self._move_square(row, column)
+        # extends turn if a second capture can be made by the same piece
+        if capture and self.test_captures(piece):
+            self._valid_moves = []
+            return True
         else:
             self.update_turn()
             return True
 
     def update_turn(self):
-        self._valid_moves = {}
+        """Changes player's turn"""
+        self._valid_moves = []
+        self.move_num = 0
         if self._current_turn == BLACK:
             self._current_turn = WHITE
         else:
             self._current_turn = BLACK
 
-    def get_valid_moves(self, piece):
-        """Finds possible non-capturing moves for a piece"""
-        moves = {}  # column: row
+    def get_valid_moves(self, piece, captures_only):
+        """Finds possible non-capturing and capturing moves for a piece"""
+        moves = []
         row = piece.get_row()
         column = piece.get_column()
         piece_color = piece.get_piece_color()
 
-        # non-capturing moves
-        # black checker can only move towards row 0
-        if piece_color == BLACK or piece.test_king():
-            # adds move locations moving northeast if on the board
-            if ((row - 1) >= 0) and ((column + 1) < COLUMNS):
-                # check if new ending space is empty to move to
-                if self._board.get_checker_details((row - 1), (column + 1)) == 0:
-                    moves[column + 1] = (row - 1)
-            # reset
-            row = piece.get_row()
-            column = piece.get_column()
+        if not captures_only:
+            # non-capturing moves
+            # black checker can only move towards row 0
+            if piece_color == BLACK or piece.test_king():
+                # adds move locations moving northeast if on the board
+                if ((row - 1) >= 0) and ((column + 1) < COLUMNS):
+                    # check if new ending space is empty to move to
+                    if self._board.get_checker_details((row - 1), (column + 1)) == 0:
+                        moves.extend([(row - 1, column + 1)])
 
-            # adds move locations moving northwest if on the board
-            if ((row - 1) >= 0) and ((column - 1) >= 0):
-                # check if new ending space is empty to move to
-                if self._board.get_checker_details((row - 1), (column - 1)) == 0:
-                    moves[column - 1] = (row - 1)
-            # reset
-            row = piece.get_row()
-            column = piece.get_column()
+                # reset
+                row = piece.get_row()
+                column = piece.get_column()
 
-        # white checker can only move towards row 7
-        if piece_color == WHITE or piece.test_king():
-            # adds move locations moving southeast if on the board
-            if ((row + 1) < ROWS) and ((column + 1) < COLUMNS):
-                # check if new ending space is empty to move to
-                if self._board.get_checker_details((row + 1), (column + 1)) == 0:
-                    moves[column + 1] = (row + 1)
-            # reset
-            row = piece.get_row()
-            column = piece.get_column()
+                # adds move locations moving northwest if on the board
+                if ((row - 1) >= 0) and ((column - 1) >= 0):
+                    # check if new ending space is empty to move to
+                    if self._board.get_checker_details((row - 1), (column - 1)) == 0:
+                        moves.extend([(row - 1, column - 1)])
+                # reset
+                row = piece.get_row()
+                column = piece.get_column()
 
-            # adds move locations moving southwest if on the board
-            if ((row + 1) < ROWS) and ((column - 1) >= 0):
-                # check if new ending space is empty to move to
-                if self._board.get_checker_details((row + 1), (column - 1)) == 0:
-                    # must be an enemy piece to capture in the square between the current square and valid move square
-                    moves[column - 1] = (row + 1)
-            # reset
-            row = piece.get_row()
-            column = piece.get_column()
+            # white checker can only move towards row 7
+            if piece_color == WHITE or piece.test_king():
+                # adds move locations moving southeast if on the board
+                if ((row + 1) < ROWS) and ((column + 1) < COLUMNS):
+                    # check if new ending space is empty to move to
+                    if self._board.get_checker_details((row + 1), (column + 1)) == 0:
+                        moves.extend([(row + 1, column + 1)])
+                # reset
+                row = piece.get_row()
+                column = piece.get_column()
 
-        # capturing moves
+                # adds move locations moving southwest if on the board
+                if ((row + 1) < ROWS) and ((column - 1) >= 0):
+                    # check if new ending space is empty to move to
+                    if self._board.get_checker_details((row + 1), (column - 1)) == 0:
+                        # must be an enemy piece to capture in square between the current square and valid move square
+                        moves.extend([(row + 1, column - 1)])
+                # reset
+                row = piece.get_row()
+                column = piece.get_column()
+
+    # capturing moves
         # black checker can only move towards row 0
         if piece_color == BLACK or piece.test_king():
             # adds move locations moving northeast if on the board
@@ -151,7 +155,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row - 1), (column + 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        moves[column + 2] = (row - 2)
+                        moves.extend([(row - 2, column + 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -163,7 +167,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row - 1), (column - 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        moves[column - 2] = (row - 2)
+                        moves.extend([(row - 2, column - 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -177,7 +181,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row + 1), (column + 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        moves[column + 2] = (row + 2)
+                        moves.extend([(row + 2, column + 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -189,13 +193,13 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row + 1), (column - 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        moves[column - 2] = (row + 2)
+                        moves.extend([(row + 2, column - 2)])
 
         return moves
 
     def test_captures(self, piece):
-        """Finds capturing moves for a piece"""
-        capture_squares = {}  # column: row
+        """Finds capturing moves for a piece. Used to test if player's turn should continue after capturing 1+ pieces"""
+        capture_squares = []
         row = piece.get_row()
         column = piece.get_column()
         piece_color = piece.get_piece_color()
@@ -209,7 +213,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row - 1), (column + 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        capture_squares[column + 2] = (row - 2)
+                        capture_squares.extend([(row - 2, column + 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -221,7 +225,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row - 1), (column - 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        capture_squares[column - 2] = (row - 2)
+                        capture_squares.extend([(row - 2, column - 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -235,7 +239,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row + 1), (column + 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        capture_squares[column + 2] = (row + 2)
+                        capture_squares.extend([(row + 2, column + 2)])
             # reset
             row = piece.get_row()
             column = piece.get_column()
@@ -247,7 +251,7 @@ class Game:
                     # tests for enemy piece
                     validate = self._board.get_checker_details((row + 1), (column - 1))
                     if validate != 0 and validate.get_piece_color() != piece_color:
-                        capture_squares[column - 2] = (row + 2)
+                        capture_squares.extend([(row + 2, column - 2)])
 
         if capture_squares:
             return True
@@ -256,13 +260,15 @@ class Game:
 
     def draw_valid_moves(self, moves):
         """Displays selected pieces valid moves on the board"""
-        for move in moves.items():
-            column, row = move
+        for move in moves:
+            row = move[0]
+            column = move[1]
             pygame.draw.circle(self._window, GREEN, (column * SQUARE_SIZE + SQUARE_SIZE // 2, row * SQUARE_SIZE + SQUARE_SIZE // 2), 10)
 
 
 class GameBoard:
-    """Creates the game board with pieces in the starting positions"""
+    """Creates the game board with pieces in the starting positions. Updates piece's location, removes pieces and
+    checks for the winner."""
 
     def __init__(self):
         self._board = []
@@ -321,7 +327,8 @@ class GameBoard:
                     self._board[row].append(0)
 
     def draw_pieces(self, window):
-        """Draws board by calling draw_board method"""
+        """Draws game pieces"""
+
         self.draw_board(window)
 
         for row in range(ROWS):
@@ -331,7 +338,7 @@ class GameBoard:
                     piece.create_piece(window)
 
     def make_move(self, piece, row, column):
-        """Moves the piece on the board and checks if a king should be made. King takes effect next turn"""
+        """Moves the piece on the board and checks if a king should be made. Returns piece's new location"""
 
         self._board[row][column] = self._board[piece.get_row()][piece.get_column()]
         self._board[piece.get_row()][piece.get_column()] = 0
@@ -341,18 +348,19 @@ class GameBoard:
             piece.create_king()
             self._black_kings += 1
 
-        if piece.get_piece_color() == WHITE and row == ROWS:
+        if piece.get_piece_color() == WHITE and row == ROWS - 1:
             piece.create_king()
             self._white_kings += 1
 
-        new_location = {row: column}
+        new_location = (row, column)
         return new_location
 
     def get_checker_details(self, row, column):
+        """Returns checker detail in the specified square"""
         return self._board[row][column]
 
     def remove_piece(self, piece):
-        """Remove captured piece form the board and from players piece numebr"""
+        """Remove captured piece form the board and from players piece number"""
         self._board[piece.get_row()][piece.get_column()] = 0
 
         if piece.get_piece_color() == BLACK:
@@ -360,9 +368,18 @@ class GameBoard:
         else:
             self._white_pieces -= 1
 
+    def winner(self):
+        """Returns winner when all pieces are captured. Displayed on the screen."""
+        if self._black_pieces == 0:
+            return "White Wins!"
+        elif self._white_pieces == 0:
+            return "Black Wins!"
+        else:
+            return None
+
 
 class Piece:
-    """Represents and creates the checker pieces"""
+    """Keeps track of each piece's location, color, and type. Creates king pieces."""
 
     def __init__(self, row, column, piece_color):
         self._row = row
@@ -381,7 +398,7 @@ class Piece:
 
     def find_position(self):
         """Draws piece in middle of square"""
-        self._x_cord = SQUARE_SIZE * self._column + SQUARE_SIZE //2
+        self._x_cord = SQUARE_SIZE * self._column + SQUARE_SIZE // 2
         self._y_cord = SQUARE_SIZE * self._row + SQUARE_SIZE // 2
 
     def get_row(self):
@@ -416,16 +433,4 @@ class Piece:
         pygame.draw.circle(window, self._piece_color, (self._x_cord, self._y_cord), radius)
         # if true add crown picture to piece
         if self._king:
-            window.blit(CROWN, (self._x_cord - CROWN.get_width() // 2 , self._y_cord - CROWN.get_height() // 2))
-
-
-class OutOfTurn(Exception):
-    """Exception if a player tries to make a move when it is not their turn"""
-    pass
-
-
-class InvalidSquare(Exception):
-    """Exception if a player tries to move to an invalid square"""
-    pass
-
-
+            window.blit(CROWN, (self._x_cord - CROWN.get_width() // 2, self._y_cord - CROWN.get_height() // 2))

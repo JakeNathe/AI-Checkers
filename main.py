@@ -1,14 +1,13 @@
-# Date: 3/30/2023
+# Date: 4/02/2023
 # Description:  Creates a 8x8 standard checkers board with 2 players. Players are able to move around board and capture
 #               opponents pieces. Pieces can be upgraded to a "King" by making it to the opposite end of the board.
 #               If a piece is able to be captured, the player must do so. The game is won when all the opponents pieces
-#               are captured.
+#               are captured. Black starts first.
 
 import pygame
 from constants import *
 from game import *
 
-WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Checkers")
 
 
@@ -37,7 +36,7 @@ def main():
                 row, column = get_position_from_mouse(position)
                 current_game.selected_piece(row, column)
 
-        current_game.update()
+            current_game.update()
 
     pygame.quit()
 
