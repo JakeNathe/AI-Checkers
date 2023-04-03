@@ -369,7 +369,7 @@ class GameBoard:
             self._white_pieces -= 1
 
     def winner(self):
-        """Returns winner when all pieces are captured. Displayed on the screen."""
+        """Returns winner when all pieces are captured. Displayed on the screen. (display not added yet)"""
         if self._black_pieces == 0:
             return "White Wins!"
         elif self._white_pieces == 0:
