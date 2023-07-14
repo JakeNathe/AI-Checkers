@@ -3,8 +3,9 @@
 import pygame
 from constants import *
 from game import *
+from minimax import minimax
 
-pygame.display.set_caption("Checkers")
+pygame.display.set_caption("Checkers by Jake Nathe")
 
 
 def get_position_from_mouse(position):
@@ -24,7 +25,12 @@ def main():
     while run:
         clock.tick(FPS)
 
-        if current_game.winner() is not None:
+        # # creates AI move for White
+        # if current_game.current_turn == WHITE:
+        #     value, new_board = minimax(current_game.get_board(), 3, WHITE)
+        #     current_game.ai_move(new_board)
+
+        if current_game.winner():
             print(current_game.winner())
             run = False
 

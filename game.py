@@ -57,14 +57,18 @@ class Game:
         piece = self._board.get_piece(row, column)
         if self.selected_piece and piece == 0 and (row, column) in self.valid_moves:
             self._board.make_move(self.selected_piece, row, column)
-            skipped = self.valid_moves[(row, column)]
-            if skipped:
-                self._board.remove_pieces(skipped)
+            jumped = self.valid_moves[(row, column)]
+            if jumped:
+                self._board.remove_pieces(jumped)
             self.update_turn()
         else:
             return False
 
         return True
+
+    def ai_move(self, board):
+        self._board = board
+        self.update_turn()
 
 
 class GameBoard:
@@ -78,6 +82,10 @@ class GameBoard:
         self.black_kings = 0
         self.black_pieces = 12
         self.white_pieces = 12
+
+    def evaluate(self):
+        """Evaluates score of the board, for AI"""
+        return self.white_pieces - self.black_pieces + (self.white_kings * 0.5 - self.black_kings * 0.5)
 
     def draw_board(self, window):
         """Sets up board with correct colors"""
@@ -127,17 +135,26 @@ class GameBoard:
         """Return piece in specified square"""
         return self._board[row][column]
 
+    def get_all_pieces(self, color):
+        pieces = []
+        for row in self._board:
+            for piece in row:
+                if piece != 0 and piece.color == color:
+                    pieces.append(piece)
+        return pieces
+
     def make_move(self, piece, row, column):
         """Moves the piece on the board and checks if a king should be made. Returns piece's new location"""
         self._board[piece.row][piece.column], self._board[row][column] = self._board[row][column], self._board[piece.row][piece.column]
         piece.move_piece(row, column)
 
         if row == ROWS - 1 or row == 0:
-            piece.create_king()
-            if piece.color == WHITE:
-                self.white_kings += 1
-            else:
-                self.black_kings += 1
+            if piece.king is False:
+                piece.create_king()
+                if piece.color == WHITE:
+                    self.white_kings += 1
+                else:
+                    self.black_kings += 1
 
     def remove_pieces(self, pieces):
         """Remove captured pieces form the board and from players piece number"""
@@ -152,9 +169,9 @@ class GameBoard:
     def winner(self):
         """Returns winner when all pieces are captured. Displayed on the screen. (display not added yet)"""
         if self.black_pieces <= 0:
-            return "WHITE"
+            return "White Wins!"
         elif self.white_pieces <= 0:
-            return "BLACK"
+            return "Black Wins!"
         return None
 
     def get_valid_moves(self, piece):
@@ -173,7 +190,7 @@ class GameBoard:
 
         return moves
 
-    def _move_left(self, start, stop, step, color, left, skipped=[]):
+    def _move_left(self, start, stop, step, color, left, jumped=[]):
         moves = {}
         last = []
         for x in range(start, stop, step):
@@ -182,20 +199,20 @@ class GameBoard:
 
             current = self._board[x][left]
             if current == 0:
-                if skipped and not last:
+                if jumped and not last:
                     break
-                elif skipped:
-                    moves[(x, left)] = last + skipped
+                elif jumped:
+                    moves[(x, left)] = last + jumped
                 else:
                     moves[(x, left)] = last
 
                 if last:
                     if step == -1:
-                        row = max(x - 3, 0)
+                        row = max(x - 3, -1)
                     else:
                         row = min(x + 3, ROWS)
-                    moves.update(self._move_left(x + step, row, step, color, left - 1, skipped=last))
-                    moves.update(self._move_right(x + step, row, step, color, left + 1, skipped=last))
+                    moves.update(self._move_left(x + step, row, step, color, left - 1, jumped=last))
+                    moves.update(self._move_right(x + step, row, step, color, left + 1, jumped=last))
                 break
 
             elif current.color == color:
@@ -207,7 +224,7 @@ class GameBoard:
             left -= 1
         return moves
 
-    def _move_right(self, start, stop, step, color, right, skipped=[]):
+    def _move_right(self, start, stop, step, color, right, jumped=[]):
         moves = {}
         last = []
         for x in range(start, stop, step):
@@ -216,20 +233,20 @@ class GameBoard:
 
             current = self._board[x][right]
             if current == 0:
-                if skipped and not last:
+                if jumped and not last:
                     break
-                elif skipped:
-                    moves[(x, right)] = last + skipped
+                elif jumped:
+                    moves[(x, right)] = last + jumped
                 else:
                     moves[(x, right)] = last
 
                 if last:
                     if step == -1:
-                        row = max(x - 3, 0)
+                        row = max(x - 3, -1)
                     else:
                         row = min(x + 3, ROWS)
-                    moves.update(self._move_left(x + step, row, step, color, right - 1, skipped=last))
-                    moves.update(self._move_right(x + step, row, step, color, right + 1, skipped=last))
+                    moves.update(self._move_left(x + step, row, step, color, right - 1, jumped=last))
+                    moves.update(self._move_right(x + step, row, step, color, right + 1, jumped=last))
                 break
 
             elif current.color == color:
