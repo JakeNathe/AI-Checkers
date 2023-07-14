@@ -1,8 +1,8 @@
 # AI Checkers
 
-Checkers game with an AI player for white
-Black starts the game
-GUI using pycharm
+Checkers game with an AI player for white.
+Black starts the game.
+GUI using pycharm.
 
 Program validates all moves that a piece can make. If it is white's turn then only white pieces can move. 
 Non-king white peieces can only move down and black can only move up. Kings can move in either direction.
